@@ -1,0 +1,27 @@
+server:
+  port: 8080
+
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/study_checkin?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    username: root
+    password: root123
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: auto
+
+# 微信小程序配置（填你自己的appid和secret）
+wx:
+  appid: wxb35e855ca17450fe
+  secret: 82f0f7770ea45d2863ad9a51c842a592
+
+# JWT配置
+jwt:
+  secret: StudyCheckin2024SecretKey@FuJianChuanZheng
+  expire: 604800  # 7天（秒）
