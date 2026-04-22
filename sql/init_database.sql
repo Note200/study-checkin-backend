@@ -19,7 +19,7 @@ CREATE TABLE `user` (
   `id` INT NOT NULL AUTO_INCREMENT COMMENT '用户ID',
   `openid` VARCHAR(100) DEFAULT NULL COMMENT '微信openid',
   `username` VARCHAR(50) DEFAULT NULL COMMENT '用户名/学号',
-  `password` VARCHAR(100) DEFAULT NULL COMMENT '密码(123456)',
+  `password` VARCHAR(100) DEFAULT NULL COMMENT '密码(BCrypt加密)',
   `nickname` VARCHAR(50) NOT NULL COMMENT '昵称',
   `avatar` VARCHAR(255) DEFAULT NULL COMMENT '头像URL',
   `major` VARCHAR(100) DEFAULT NULL COMMENT '专业',
@@ -113,9 +113,10 @@ INSERT INTO `class` (`name`, `invite_code`, `creator_id`) VALUES
 ('2024级计算机应用技术2班', 'CLASS001', 1),
 ('2024级软件技术1班', 'CLASS002', 1);
 
--- ② 用户数据（包含账号密码登录）
+-- ② 用户数据（包含账号密码登录，密码使用 BCrypt 加密）
 INSERT INTO `user` (`openid`, `username`, `password`, `nickname`, `avatar`, `major`, `class_id`, `role`, `status`) VALUES
-('admin_openid_001', 'gongpeng', '123456', '龚鹏', 'https://mmbiz.qpic.cn/mmbiz/icTdbqWNOwNRna42FI242Lcia07jQodd2FJGIYQfG0LAJGFxM4Fbnp6ERQySc2LhheBOJtQVCSYVic3COEcrLoN8ib8A/0', '计算机应用技术', 1, 1, 0);
+('admin_openid_001', 'gongpeng', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iKtBiMkhcCQ0wOB7jFKnVD2DvzyG', '龚鹏', 'https://mmbiz.qpic.cn/mmbiz/icTdbqWNOwNRna42FI242Lcia07jQodd2FJGIYQfG0LAJGFxM4Fbnp6ERQySc2LhheBOJtQVCSYVic3COEcrLoN8ib8A/0', '计算机应用技术', 1, 1, 0);
+-- 注意：密码为 '123456' 的 BCrypt 哈希值
 
 INSERT INTO `user` (`openid`, `nickname`, `avatar`, `major`, `class_id`, `role`, `status`) VALUES
 ('fake_openid_001', '张小明', 'https://thispersondoesnotexist.com/image', '计算机应用技术', 1, 0, 0),

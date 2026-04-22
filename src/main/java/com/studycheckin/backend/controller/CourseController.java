@@ -39,7 +39,7 @@ public class CourseController {
     /** 修改课程 */
     @PutMapping("/update")
     public Result<?> update(@RequestBody Course course) {
-        courseService.updateById(course);
+        courseService.updateCourse(course, UserContext.getUserId());
         return Result.ok();
     }
 

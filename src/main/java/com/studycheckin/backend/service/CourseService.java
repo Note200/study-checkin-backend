@@ -26,6 +26,20 @@ public class CourseService extends ServiceImpl<CourseMapper, Course> {
                 .remove();
     }
 
+    public void updateCourse(Course course, Long userId) {
+        // 校验课程归属：只能修改自己的课程
+        Course existing = lambdaQuery()
+                .eq(Course::getId, course.getId())
+                .eq(Course::getUserId, userId)
+                .one();
+        if (existing == null) {
+            throw new RuntimeException("课程不存在或无权修改");
+        }
+        // 不允许修改 userId
+        course.setUserId(userId);
+        updateById(course);
+    }
+
     /** 获取今日课程 */
     public List<Course> listTodayByUser(Long userId) {
         // 获取今天是星期几 (1=周一, 7=周日)

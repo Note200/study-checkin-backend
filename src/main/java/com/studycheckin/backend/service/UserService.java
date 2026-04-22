@@ -7,6 +7,7 @@ import com.studycheckin.backend.mapper.UserMapper;
 import com.studycheckin.backend.util.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
@@ -18,6 +19,9 @@ import java.util.Map;
 public class UserService extends ServiceImpl<UserMapper, User> {
 
     private final JwtUtil jwtUtil;
+
+    /** BCrypt 密码加密器 */
+    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     @Value("${wx.appid}")
     private String appid;
@@ -77,8 +81,8 @@ public class UserService extends ServiceImpl<UserMapper, User> {
             throw new RuntimeException("用户不存在");
         }
         
-        // 简单密码校验（生产环境应加密比对）
-        if (!password.equals(user.getPassword())) {
+        // BCrypt 密码校验
+        if (!passwordEncoder.matches(password, user.getPassword())) {
             throw new RuntimeException("密码错误");
         }
         
@@ -106,7 +110,7 @@ public class UserService extends ServiceImpl<UserMapper, User> {
         // 创建新用户
         User user = new User();
         user.setUsername(username);
-        user.setPassword(password); // 简单存储，生产环境应加密
+        user.setPassword(passwordEncoder.encode(password)); // BCrypt 加密存储
         user.setNickname(nickname);
         user.setRole(0);
         user.setStatus(0);
