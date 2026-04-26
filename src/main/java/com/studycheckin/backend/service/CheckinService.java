@@ -9,9 +9,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -141,6 +140,25 @@ public class CheckinService {
                .eq(CheckinRecord::getUserId, userId)
                .orderByDesc(CheckinRecord::getCheckinDate);
         return recordMapper.selectList(wrapper);
+    }
+
+    /** 获取某月已打卡的日期列表 */
+    public List<Integer> getCalendarDays(Long userId, int year, int month) {
+        LocalDate startDate = LocalDate.of(year, month, 1);
+        LocalDate endDate = startDate.plusMonths(1).minusDays(1);
+
+        com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<CheckinRecord> wrapper =
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<>();
+        wrapper.eq(CheckinRecord::getUserId, userId)
+               .ge(CheckinRecord::getCheckinDate, startDate)
+               .le(CheckinRecord::getCheckinDate, endDate);
+        List<CheckinRecord> records = recordMapper.selectList(wrapper);
+
+        return records.stream()
+                .map(r -> r.getCheckinDate().getDayOfMonth())
+                .distinct()
+                .sorted()
+                .collect(Collectors.toList());
     }
 
     /** 获取用户打卡统计 */

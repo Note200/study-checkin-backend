@@ -55,6 +55,12 @@ public class CheckinController {
         return Result.ok(checkinService.listRecords(taskId, UserContext.getUserId()));
     }
 
+    /** 获取本月打卡日历（已打卡的日期列表） */
+    @GetMapping("/calendar")
+    public Result<?> calendar(@RequestParam int year, @RequestParam int month) {
+        return Result.ok(checkinService.getCalendarDays(UserContext.getUserId(), year, month));
+    }
+
     /** 获取打卡统计 */
     @GetMapping("/stats")
     public Result<?> stats() {
