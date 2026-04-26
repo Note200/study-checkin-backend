@@ -156,8 +156,8 @@ public class CheckinService {
         return recordMapper.selectList(wrapper);
     }
 
-    /** 获取某月已打卡的日期列表 */
-    public List<Integer> getCalendarDays(Long userId, int year, int month) {
+    /** 获取某月打卡详情（日期+次数），用于热力图 */
+    public List<Map<String, Object>> getCalendarDays(Long userId, int year, int month) {
         LocalDate startDate = LocalDate.of(year, month, 1);
         LocalDate endDate = startDate.plusMonths(1).minusDays(1);
 
@@ -168,11 +168,29 @@ public class CheckinService {
                .le(CheckinRecord::getCheckinDate, endDate);
         List<CheckinRecord> records = recordMapper.selectList(wrapper);
 
-        return records.stream()
-                .map(r -> r.getCheckinDate().getDayOfMonth())
-                .distinct()
-                .sorted()
-                .collect(Collectors.toList());
+        // 按日期分组，统计每天打卡次数
+        Map<Integer, Long> dayCountMap = records.stream()
+                .collect(Collectors.groupingBy(
+                        r -> r.getCheckinDate().getDayOfMonth(),
+                        Collectors.counting()
+                ));
+
+        // 找出最大打卡次数
+        long maxCount = dayCountMap.values().stream().max(Long::compare).orElse(1);
+        if (maxCount == 0) maxCount = 1;
+
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Map.Entry<Integer, Long> entry : dayCountMap.entrySet()) {
+            Map<String, Object> item = new HashMap<>();
+            item.put("day", entry.getKey());
+            item.put("count", entry.getValue());
+            // 计算热力等级 0-4
+            int level = (int) Math.ceil((double) entry.getValue() / maxCount * 4);
+            if (level > 4) level = 4;
+            item.put("level", level);
+            result.add(item);
+        }
+        return result;
     }
 
     /** 获取用户打卡统计 */
