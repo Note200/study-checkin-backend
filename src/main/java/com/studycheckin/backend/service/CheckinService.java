@@ -177,10 +177,11 @@ public class CheckinService {
 
     /** 获取用户打卡统计 */
     public Map<String, Object> getStats(Long userId) {
-        com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<CheckinRecord> recordWrapper =
+        // 累计打卡总天数
+        com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<CheckinRecord> allWrapper =
                 new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<>();
-        recordWrapper.eq(CheckinRecord::getUserId, userId);
-        long totalDays = recordMapper.selectCount(recordWrapper);
+        allWrapper.eq(CheckinRecord::getUserId, userId);
+        long totalDays = recordMapper.selectCount(allWrapper);
 
         // 统计今日已打卡数
         com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<CheckinTask> taskWrapper =
@@ -199,11 +200,58 @@ public class CheckinService {
         // 计算完成率
         int rate = totalTasks > 0 ? (int) (todayDone * 100 / totalTasks) : 0;
 
+        // 计算连续打卡天数（跨所有任务的连续天数）
+        long streakDays = calculateUserStreak(userId);
+
+        // 本月打卡天数
+        LocalDate monthStart = today.withDayOfMonth(1);
+        com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<CheckinRecord> monthWrapper =
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<>();
+        monthWrapper.eq(CheckinRecord::getUserId, userId)
+                    .ge(CheckinRecord::getCheckinDate, monthStart)
+                    .le(CheckinRecord::getCheckinDate, today);
+        long monthDays = recordMapper.selectCount(monthWrapper);
+
         Map<String, Object> stats = new HashMap<>();
         stats.put("total", totalTasks);
         stats.put("done", todayDone);
         stats.put("rate", rate);
+        stats.put("totalDays", totalDays);
+        stats.put("streakDays", streakDays);
+        stats.put("monthDays", monthDays);
         return stats;
+    }
+
+    /** 计算用户跨所有任务的连续打卡天数 */
+    private long calculateUserStreak(Long userId) {
+        // 查询用户所有打卡记录的日期，按日期降序
+        com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<CheckinRecord> wrapper =
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<>();
+        wrapper.eq(CheckinRecord::getUserId, userId)
+               .select(CheckinRecord::getCheckinDate)
+               .groupBy(CheckinRecord::getCheckinDate)
+               .orderByDesc(CheckinRecord::getCheckinDate);
+        List<CheckinRecord> records = recordMapper.selectList(wrapper);
+
+        if (records.isEmpty()) return 0;
+
+        long streak = 0;
+        LocalDate checkDate = LocalDate.now();
+
+        for (CheckinRecord record : records) {
+            if (record.getCheckinDate().equals(checkDate)) {
+                streak++;
+                checkDate = checkDate.minusDays(1);
+            } else if (record.getCheckinDate().equals(checkDate.minusDays(1))) {
+                // 今天还没打卡，但从昨天开始连续
+                checkDate = record.getCheckinDate();
+                streak++;
+                checkDate = checkDate.minusDays(1);
+            } else {
+                break;
+            }
+        }
+        return streak;
     }
 
     /** 获取打卡历史记录 */
