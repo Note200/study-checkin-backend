@@ -49,6 +49,18 @@ public class CheckinController {
         }
     }
 
+    /** 撤销今日打卡 */
+    @PostMapping("/undo")
+    public Result<?> undoCheckin(@RequestBody Map<String, Object> body) {
+        Long taskId = Long.valueOf(body.get("taskId").toString());
+        try {
+            checkinService.undoCheckin(taskId, UserContext.getUserId());
+            return Result.ok();
+        } catch (Exception e) {
+            return Result.fail(e.getMessage());
+        }
+    }
+
     /** 获取某任务的打卡记录 */
     @GetMapping("/records/{taskId}")
     public Result<List<CheckinRecord>> records(@PathVariable Long taskId) {

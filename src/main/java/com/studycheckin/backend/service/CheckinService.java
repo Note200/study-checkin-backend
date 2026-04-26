@@ -133,6 +133,20 @@ public class CheckinService {
         return record;
     }
 
+    /** 撤销今日打卡 */
+    public void undoCheckin(Long taskId, Long userId) {
+        LocalDate today = LocalDate.now();
+        com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<CheckinRecord> wrapper =
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<>();
+        wrapper.eq(CheckinRecord::getTaskId, taskId)
+               .eq(CheckinRecord::getUserId, userId)
+               .eq(CheckinRecord::getCheckinDate, today);
+        int deleted = recordMapper.delete(wrapper);
+        if (deleted == 0) {
+            throw new RuntimeException("今天还没有打卡记录");
+        }
+    }
+
     public List<CheckinRecord> listRecords(Long taskId, Long userId) {
         com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<CheckinRecord> wrapper =
                 new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<>();
