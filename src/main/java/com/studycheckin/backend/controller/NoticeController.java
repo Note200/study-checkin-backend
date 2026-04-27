@@ -16,6 +16,13 @@ public class NoticeController {
 
     private final NoticeService noticeService;
 
+    /** 获取最新一条公告（首页用） - 必须放在 {id} 之前 */
+    @GetMapping("/latest")
+    public Result<Notice> latest() {
+        List<Notice> list = noticeService.listAll();
+        return Result.ok(list.isEmpty() ? null : list.get(0));
+    }
+
     /** 获取公告列表（所有人可访问） */
     @GetMapping("/list")
     public Result<List<Notice>> list() {

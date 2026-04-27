@@ -20,7 +20,8 @@ public class WebConfig implements WebMvcConfigurer {
                 .excludePathPatterns(
                     "/api/user/login",           // 微信登录
                     "/api/user/loginByPassword", // 账号密码登录
-                    "/api/user/register"         // 注册
+                    "/api/user/register",        // 注册
+                    "/api/notice/latest"         // 最新公告（公开）
                 );
     }
 

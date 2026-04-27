@@ -3,15 +3,19 @@ package com.studycheckin.backend.service;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.studycheckin.backend.entity.CheckinRecord;
 import com.studycheckin.backend.entity.CheckinTask;
+import com.studycheckin.backend.entity.User;
 import com.studycheckin.backend.mapper.CheckinRecordMapper;
 import com.studycheckin.backend.mapper.CheckinTaskMapper;
+import com.studycheckin.backend.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.time.temporal.TemporalAdjusters;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -19,6 +23,9 @@ public class CheckinService {
 
     private final CheckinTaskMapper taskMapper;
     private final CheckinRecordMapper recordMapper;
+
+    @Autowired
+    private UserMapper userMapper;
 
     // ===== 打卡任务 =====
 
@@ -109,6 +116,12 @@ public class CheckinService {
         com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<CheckinTask> wrapper =
                 new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<>();
         wrapper.eq(CheckinTask::getId, taskId).eq(CheckinTask::getUserId, userId);
+        // 先级联删除该任务的所有打卡记录
+        com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<CheckinRecord> recordWrapper =
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<>();
+        recordWrapper.eq(CheckinRecord::getTaskId, taskId);
+        recordMapper.delete(recordWrapper);
+        // 再删除任务本身
         taskMapper.delete(wrapper);
     }
 
@@ -134,6 +147,20 @@ public class CheckinService {
         return record;
     }
 
+    /** 撤销今日打卡 */
+    public void undoCheckin(Long taskId, Long userId) {
+        LocalDate today = LocalDate.now();
+        com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<CheckinRecord> wrapper =
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<>();
+        wrapper.eq(CheckinRecord::getTaskId, taskId)
+               .eq(CheckinRecord::getUserId, userId)
+               .eq(CheckinRecord::getCheckinDate, today);
+        int deleted = recordMapper.delete(wrapper);
+        if (deleted == 0) {
+            throw new RuntimeException("今天还没有打卡记录");
+        }
+    }
+
     public List<CheckinRecord> listRecords(Long taskId, Long userId) {
         com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<CheckinRecord> wrapper =
                 new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<>();
@@ -145,29 +172,48 @@ public class CheckinService {
 
     /** 获取用户打卡统计 */
     public Map<String, Object> getStats(Long userId) {
+        LocalDate today = LocalDate.now();
+
+        // 累计打卡总天数（所有打卡记录数）
         com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<CheckinRecord> recordWrapper =
                 new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<>();
         recordWrapper.eq(CheckinRecord::getUserId, userId);
         long totalDays = recordMapper.selectCount(recordWrapper);
 
-        // 统计今日已打卡数
+        // 计算连续打卡天数（取所有任务中最长的连续天数）
         com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<CheckinTask> taskWrapper =
                 new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<>();
         taskWrapper.eq(CheckinTask::getUserId, userId);
-        long totalTasks = taskMapper.selectCount(taskWrapper);
+        List<CheckinTask> tasks = taskMapper.selectList(taskWrapper);
 
-        // 今日已打卡数（今天有打卡记录的任务数）
-        LocalDate today = LocalDate.now();
+        long streakDays = 0;
+        for (CheckinTask task : tasks) {
+            long cd = calculateContinueDays(task.getId(), userId);
+            if (cd > streakDays) streakDays = cd;
+        }
+
+        // 本月打卡天数
+        LocalDate monthStart = today.withDayOfMonth(1);
+        com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<CheckinRecord> monthWrapper =
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<>();
+        monthWrapper.eq(CheckinRecord::getUserId, userId)
+                    .ge(CheckinRecord::getCheckinDate, monthStart);
+        long monthDays = recordMapper.selectCount(monthWrapper);
+
+        // 兼容旧字段：总任务数、今日完成数、完成率
+        long totalTasks = tasks.size();
         com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<CheckinRecord> todayWrapper =
                 new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<>();
         todayWrapper.eq(CheckinRecord::getUserId, userId)
                     .eq(CheckinRecord::getCheckinDate, today);
         long todayDone = recordMapper.selectCount(todayWrapper);
-
-        // 计算完成率
         int rate = totalTasks > 0 ? (int) (todayDone * 100 / totalTasks) : 0;
 
         Map<String, Object> stats = new HashMap<>();
+        stats.put("totalDays", totalDays);
+        stats.put("streakDays", streakDays);
+        stats.put("monthDays", monthDays);
+        // 兼容首页使用的字段
         stats.put("total", totalTasks);
         stats.put("done", todayDone);
         stats.put("rate", rate);
@@ -185,5 +231,158 @@ public class CheckinService {
         wrapper.orderByDesc(CheckinRecord::getCheckinDate)
                .last("LIMIT " + limit);
         return recordMapper.selectList(wrapper);
+    }
+
+    // ===== 排行榜 =====
+
+    /**
+     * 获取本周班级排行榜
+     * 按本周打卡次数排名
+     */
+    public List<Map<String, Object>> getWeekRank(Long currentUserId) {
+        // 获取本周一的日期
+        LocalDate today = LocalDate.now();
+        LocalDate weekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+
+        // 获取当前用户的班级
+        User currentUser = userMapper.selectById(currentUserId);
+        Long classId = currentUser != null ? currentUser.getClassId() : null;
+
+        // 查询本周的打卡记录
+        com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<CheckinRecord> wrapper =
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<>();
+        wrapper.ge(CheckinRecord::getCheckinDate, weekStart)
+               .le(CheckinRecord::getCheckinDate, today);
+        List<CheckinRecord> weekRecords = recordMapper.selectList(wrapper);
+
+        // 按 userId 分组统计打卡次数
+        Map<Long, Long> checkinCounts = weekRecords.stream()
+                .collect(Collectors.groupingBy(CheckinRecord::getUserId, Collectors.counting()));
+
+        // 查询相关用户信息
+        Set<Long> userIds = checkinCounts.keySet();
+        Map<Long, User> userMap = new HashMap<>();
+        if (!userIds.isEmpty()) {
+            userMapper.selectBatchIds(userIds).forEach(u -> userMap.put(u.getId(), u));
+        }
+
+        // 组装排名列表并排序
+        List<Map<String, Object>> rankList = new ArrayList<>();
+        for (Map.Entry<Long, Long> entry : checkinCounts.entrySet()) {
+            Long userId = entry.getKey();
+            Long count = entry.getValue();
+            User user = userMap.get(userId);
+
+            // 如果指定了班级，只返回同班同学
+            if (classId != null && user != null && !classId.equals(user.getClassId())) {
+                continue;
+            }
+
+            Map<String, Object> item = new HashMap<>();
+            item.put("userId", userId);
+            item.put("nickname", user != null ? user.getNickname() : "未知用户");
+            item.put("avatar", user != null ? user.getAvatar() : null);
+            item.put("checkinCount", count);
+            item.put("isMe", userId.equals(currentUserId));
+            rankList.add(item);
+        }
+
+        // 按打卡次数降序排序
+        rankList.sort((a, b) -> ((Long) b.get("checkinCount")).compareTo((Long) a.get("checkinCount")));
+
+        // 加上排名序号
+        for (int i = 0; i < rankList.size(); i++) {
+            rankList.get(i).put("rank", i + 1);
+        }
+
+        return rankList;
+    }
+
+    /**
+     * 本周每日学习时长（小时），前端柱状图用
+     * 返回 [{day: "周一", hours: 2.5}, ...] 共7条
+     */
+    public List<Map<String, Object>> getWeekHours(Long userId) {
+        LocalDate today = LocalDate.now();
+        LocalDate weekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+
+        // 查询本周所有打卡记录
+        com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<CheckinRecord> wrapper =
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<>();
+        wrapper.eq(CheckinRecord::getUserId, userId)
+               .ge(CheckinRecord::getCheckinDate, weekStart)
+               .le(CheckinRecord::getCheckinDate, today);
+        List<CheckinRecord> records = recordMapper.selectList(wrapper);
+
+        // 按日期分组：同一天完成的任务去重
+        Map<LocalDate, Set<Long>> dailyTasks = records.stream()
+                .collect(Collectors.groupingBy(
+                    CheckinRecord::getCheckinDate,
+                    Collectors.mapping(CheckinRecord::getTaskId, Collectors.toSet())
+                ));
+
+        // 每个打卡任务默认 30 分钟
+        final int MINUTES_PER_TASK = 30;
+
+        String[] dayNames = {"周一", "周二", "周三", "周四", "周五", "周六", "周日"};
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (int i = 0; i < 7; i++) {
+            LocalDate date = weekStart.plusDays(i);
+            if (date.isAfter(today)) {
+                result.add(Map.of("day", dayNames[i], "hours", 0));
+                continue;
+            }
+            Set<Long> tasksDone = dailyTasks.getOrDefault(date, Collections.emptySet());
+            double hours = Math.round((tasksDone.size() * MINUTES_PER_TASK / 60.0) * 10) / 10.0;
+            result.add(Map.of("day", dayNames[i], "hours", hours));
+        }
+        return result;
+    }
+
+    /**
+     * 本月打卡日历数据（热力图用）
+     * 返回 [{day: 1, count: 2, level: 1}, ...]
+     */
+    public List<Map<String, Object>> getCalendarData(Long userId, int year, int month) {
+        LocalDate monthStart = LocalDate.of(year, month, 1);
+        LocalDate monthEnd = monthStart.withDayOfMonth(monthStart.lengthOfMonth());
+        // 不查未来的数据
+        LocalDate today = LocalDate.now();
+        if (monthEnd.isAfter(today)) monthEnd = today;
+
+        com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<CheckinRecord> wrapper =
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<>();
+        wrapper.eq(CheckinRecord::getUserId, userId)
+               .ge(CheckinRecord::getCheckinDate, monthStart)
+               .le(CheckinRecord::getCheckinDate, monthEnd);
+        List<CheckinRecord> records = recordMapper.selectList(wrapper);
+
+        // 按天分组
+        Map<Integer, Long> dayCounts = records.stream()
+                .collect(Collectors.groupingBy(
+                    r -> r.getCheckinDate().getDayOfMonth(),
+                    Collectors.counting()
+                ));
+
+        // 找出最大打卡数（用于计算 level）
+        long maxCount = dayCounts.values().stream().max(Long::compare).orElse(0L);
+
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (int d = 1; d <= monthStart.lengthOfMonth(); d++) {
+            LocalDate date = LocalDate.of(year, month, d);
+            if (date.isAfter(today)) break;
+            long count = dayCounts.getOrDefault(d, 0L);
+            int level = 0;
+            if (maxCount > 0 && count > 0) {
+                level = count >= maxCount ? 4 : (int) ((count * 3.0 / maxCount) + 0.5);
+                level = Math.min(level, 4);
+            }
+            Map<String, Object> item = new HashMap<>();
+            item.put("day", d);
+            item.put("count", count);
+            item.put("level", level);
+            result.add(item);
+        }
+        return result;
     }
 }

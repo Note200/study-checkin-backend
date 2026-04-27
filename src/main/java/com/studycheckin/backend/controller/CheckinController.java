@@ -49,6 +49,18 @@ public class CheckinController {
         }
     }
 
+    /** 撤销今日打卡 */
+    @PostMapping("/undo")
+    public Result<?> undoCheckin(@RequestBody Map<String, Object> body) {
+        Long taskId = Long.valueOf(body.get("taskId").toString());
+        try {
+            checkinService.undoCheckin(taskId, UserContext.getUserId());
+            return Result.ok();
+        } catch (Exception e) {
+            return Result.fail(e.getMessage());
+        }
+    }
+
     /** 获取某任务的打卡记录 */
     @GetMapping("/records/{taskId}")
     public Result<List<CheckinRecord>> records(@PathVariable Long taskId) {
@@ -67,5 +79,23 @@ public class CheckinController {
             @RequestParam(required = false) Long taskId,
             @RequestParam(defaultValue = "20") int limit) {
         return Result.ok(checkinService.listHistory(UserContext.getUserId(), taskId, limit));
+    }
+
+    /** 获取本周排行榜（班级内） */
+    @GetMapping("/rank")
+    public Result<?> rank() {
+        return Result.ok(checkinService.getWeekRank(UserContext.getUserId()));
+    }
+
+    /** 本周每日学习时长（首页柱状图） */
+    @GetMapping("/week")
+    public Result<?> week() {
+        return Result.ok(checkinService.getWeekHours(UserContext.getUserId()));
+    }
+
+    /** 本月打卡日历（热力图） */
+    @GetMapping("/calendar")
+    public Result<?> calendar(@RequestParam int year, @RequestParam int month) {
+        return Result.ok(checkinService.getCalendarData(UserContext.getUserId(), year, month));
     }
 }

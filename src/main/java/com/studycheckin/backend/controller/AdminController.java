@@ -7,7 +7,9 @@ import com.studycheckin.backend.entity.Classes;
 import com.studycheckin.backend.entity.Notice;
 import com.studycheckin.backend.entity.User;
 import com.studycheckin.backend.mapper.CheckinRecordMapper;
+import com.studycheckin.backend.mapper.CheckinTaskMapper;
 import com.studycheckin.backend.mapper.NoticeMapper;
+import com.studycheckin.backend.mapper.StudyPlanMapper;
 import com.studycheckin.backend.service.ClassesService;
 import com.studycheckin.backend.service.UserService;
 import com.studycheckin.backend.util.UserContext;
@@ -26,6 +28,8 @@ public class AdminController {
     private final UserService userService;
     private final ClassesService classesService;
     private final CheckinRecordMapper checkinRecordMapper;
+    private final CheckinTaskMapper checkinTaskMapper;
+    private final StudyPlanMapper studyPlanMapper;
     private final NoticeMapper noticeMapper;
 
     private void checkAdmin() {
@@ -88,22 +92,17 @@ public class AdminController {
         checkAdmin();
         Map<String, Object> data = new HashMap<>();
 
-        // 用户总数
-        data.put("userCount", userService.count());
+        // 成员总数（前端用 memberCount）
+        data.put("memberCount", userService.count());
 
-        // 班级总数
-        data.put("classCount", classesService.count());
+        // 打卡任务数
+        data.put("taskCount", checkinTaskMapper.selectCount(null));
 
-        // 公告总数
-        data.put("noticeCount", noticeMapper.selectCount(null));
+        // 打卡记录数（前端用 checkinCount）
+        data.put("checkinCount", checkinRecordMapper.selectCount(null));
 
-        // 今日打卡总数
-        LambdaQueryWrapper<CheckinRecord> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(CheckinRecord::getCheckinDate, java.time.LocalDate.now());
-        data.put("todayCheckinCount", checkinRecordMapper.selectCount(wrapper));
-
-        // 打卡记录总数
-        data.put("totalCheckinCount", checkinRecordMapper.selectCount(null));
+        // 学习计划数
+        data.put("planCount", studyPlanMapper.selectCount(null));
 
         return Result.ok(data);
     }
@@ -115,6 +114,15 @@ public class AdminController {
         return Result.ok(noticeMapper.selectList(
                 new LambdaQueryWrapper<Notice>().orderByDesc(Notice::getCreateTime)
         ));
+    }
+
+    /** 发布公告 */
+    @PostMapping("/notice")
+    public Result<?> publishNotice(@RequestBody Notice notice) {
+        checkAdmin();
+        notice.setAdminId(UserContext.getUserId());
+        noticeMapper.insert(notice);
+        return Result.ok();
     }
 
     /** 删除公告 */
