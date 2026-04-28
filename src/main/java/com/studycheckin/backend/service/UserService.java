@@ -125,6 +125,26 @@ public class UserService extends ServiceImpl<UserMapper, User> {
     }
 
     /**
+     * 修改密码（需验证旧密码）
+     */
+    public void changePassword(Long userId, String oldPassword, String newPassword) {
+        User user = getById(userId);
+        if (user == null) {
+            throw new RuntimeException("用户不存在");
+        }
+        if (user.getPassword() == null || user.getPassword().isEmpty()) {
+            throw new RuntimeException("该账号未设置密码，请通过微信登录");
+        }
+        // 验证旧密码
+        if (!passwordEncoder.matches(oldPassword, user.getPassword())) {
+            throw new RuntimeException("旧密码错误");
+        }
+        // 更新新密码
+        user.setPassword(passwordEncoder.encode(newPassword));
+        updateById(user);
+    }
+
+    /**
      * 更新用户信息（昵称、头像、专业）
      */
     public void updateProfile(Long userId, String nickname, String avatar, String major) {

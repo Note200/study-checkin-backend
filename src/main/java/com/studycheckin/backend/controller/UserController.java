@@ -78,6 +78,25 @@ public class UserController {
         return Result.ok();
     }
 
+    /** 修改密码（需验证旧密码） */
+    @PutMapping("/password")
+    public Result<?> changePassword(@RequestBody Map<String, String> body) {
+        String oldPassword = body.get("oldPassword");
+        String newPassword = body.get("newPassword");
+        if (oldPassword == null || newPassword == null) {
+            return Result.fail("旧密码和新密码不能为空");
+        }
+        if (newPassword.length() < 6) {
+            return Result.fail("新密码长度不能少于6位");
+        }
+        try {
+            userService.changePassword(UserContext.getUserId(), oldPassword, newPassword);
+            return Result.ok();
+        } catch (Exception e) {
+            return Result.fail(e.getMessage());
+        }
+    }
+
     /** 通过邀请码加入班级 */
     @PostMapping("/joinClass")
     public Result<?> joinClass(@RequestBody Map<String, String> body) {
