@@ -31,3 +31,5 @@ Thumbs.db
 # Application config (exclude sensitive)
 application-local.yml
 application-dev.yml
+
+uploads/
