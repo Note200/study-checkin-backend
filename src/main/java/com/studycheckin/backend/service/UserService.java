@@ -145,6 +145,16 @@ public class UserService extends ServiceImpl<UserMapper, User> {
     }
 
     /**
+     * 更新用户头像
+     */
+    public void updateAvatar(Long userId, String avatar) {
+        User user = new User();
+        user.setId(userId);
+        user.setAvatar(avatar);
+        updateById(user);
+    }
+
+    /**
      * 更新用户信息（昵称、头像、专业）
      */
     public void updateProfile(Long userId, String nickname, String avatar, String major) {

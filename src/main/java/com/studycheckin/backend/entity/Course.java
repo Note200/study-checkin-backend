@@ -19,4 +19,6 @@ public class Course {
     private Integer startWeek;
     private Integer endWeek;
     private String color;
+    /** 0全周 1单周 2双周 3前8周 4后8周 */
+    private Integer weekType;
 }
