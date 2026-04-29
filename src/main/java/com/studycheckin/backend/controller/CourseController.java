@@ -45,10 +45,21 @@ public class CourseController {
     }
 
     /** 修改课程 */
-    @PutMapping("/update")
+    @PostMapping("/update")
     public Result<?> update(@RequestBody Course course) {
         courseService.updateCourse(course, UserContext.getUserId());
         return Result.ok();
+    }
+
+    /** 获取单个课程详情 */
+    @GetMapping("/{id}")
+    public Result<Course> detail(@PathVariable Long id) {
+        Long userId = UserContext.getUserId();
+        Course course = courseService.getById(id);
+        if (course == null || !course.getUserId().equals(userId)) {
+            return Result.fail("课程不存在");
+        }
+        return Result.ok(course);
     }
 
     /** 获取今日课程 */
