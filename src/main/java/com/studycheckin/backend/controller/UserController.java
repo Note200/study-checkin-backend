@@ -6,8 +6,12 @@ import com.studycheckin.backend.service.ClassesService;
 import com.studycheckin.backend.service.UserService;
 import com.studycheckin.backend.util.UserContext;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.File;
+import java.util.UUID;
 import java.util.Map;
 
 @RestController
@@ -17,6 +21,12 @@ public class UserController {
 
     private final UserService userService;
     private final ClassesService classesService;
+
+    @Value("${file.upload-dir:./uploads}")
+    private String uploadDir;
+
+    @Value("${file.base-url:http://localhost:8080}")
+    private String baseUrl;
 
     /** 微信登录 */
     @PostMapping("/login")
@@ -94,6 +104,28 @@ public class UserController {
             return Result.ok();
         } catch (Exception e) {
             return Result.fail(e.getMessage());
+        }
+    }
+
+    /** 上传头像 */
+    @PostMapping("/avatar")
+    public Result<?> uploadAvatar(@RequestParam("file") MultipartFile file) {
+        if (file.isEmpty()) return Result.fail("请选择图片");
+        String original = file.getOriginalFilename();
+        String ext = original != null && original.contains(".") ? original.substring(original.lastIndexOf(".")) : ".png";
+        String fileName = "avatar_" + UUID.randomUUID().toString().replace("-", "") + ext;
+        try {
+            File dir = new File(uploadDir);
+            if (!dir.exists()) dir.mkdirs();
+            File dest = new File(dir, fileName);
+            file.transferTo(dest);
+            String url = baseUrl + "/uploads/" + fileName;
+            // 更新用户头像
+            Long userId = UserContext.getUserId();
+            userService.updateAvatar(userId, url);
+            return Result.ok(url);
+        } catch (Exception e) {
+            return Result.fail("上传失败：" + e.getMessage());
         }
     }
 

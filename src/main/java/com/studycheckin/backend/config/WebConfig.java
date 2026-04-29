@@ -26,6 +26,12 @@ public class WebConfig implements WebMvcConfigurer {
     }
 
     @Override
+    public void addResourceHandlers(org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry registry) {
+        registry.addResourceHandler("/uploads/**")
+                .addResourceLocations("file:C:/Users/rain/WorkBuddy/20260411012625/study-checkin-backend-master/uploads/");
+    }
+
+    @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**")
                 .allowedOriginPatterns("*")
