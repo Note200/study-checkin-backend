@@ -190,7 +190,7 @@ public class CheckinService {
                 ));
 
         // 找出最大打卡次数
-        long maxCount = dayCountMap.values().stream().max(Long::compare).orElse(1);
+        long maxCount = dayCountMap.values().stream().max(Long::compare).orElse(1L);
         if (maxCount == 0) maxCount = 1;
 
         List<Map<String, Object>> result = new ArrayList<>();
