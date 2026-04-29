@@ -18,8 +18,16 @@ public class CourseController {
 
     /** 获取我的课程表 */
     @GetMapping("/list")
-    public Result<List<Course>> list() {
-        return Result.ok(courseService.listByUser(UserContext.getUserId()));
+    public Result<List<Course>> list(
+            @RequestParam(required = false) Integer weekDay,
+            @RequestParam(required = false) Integer week) {
+        Long userId = UserContext.getUserId();
+        if (weekDay != null) {
+            // 列表视图：按星期筛选
+            return Result.ok(courseService.listByUserAndWeekDay(userId, weekDay));
+        }
+        // 格子视图：返回全部
+        return Result.ok(courseService.listByUser(userId));
     }
 
     /** 添加课程 */

@@ -211,42 +211,16 @@ public class CheckinService {
     public Map<String, Object> getStats(Long userId) {
         LocalDate today = LocalDate.now();
 
-        // 累计打卡总天数（所有打卡记录数）
-        com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<CheckinRecord> recordWrapper =
+        // 累计打卡总天数（去重：有打卡记录的不同日期数）
+        com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<CheckinRecord> distinctWrapper =
                 new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<>();
-        allWrapper.eq(CheckinRecord::getUserId, userId);
-        long totalDays = recordMapper.selectCount(allWrapper);
+        distinctWrapper.eq(CheckinRecord::getUserId, userId)
+                       .select(CheckinRecord::getCheckinDate)
+                       .groupBy(CheckinRecord::getCheckinDate);
+        List<CheckinRecord> distinctRecords = recordMapper.selectList(distinctWrapper);
+        long totalDays = distinctRecords.size();
 
-        // 计算连续打卡天数（取所有任务中最长的连续天数）
-        com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<CheckinTask> taskWrapper =
-                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<>();
-        taskWrapper.eq(CheckinTask::getUserId, userId);
-        List<CheckinTask> tasks = taskMapper.selectList(taskWrapper);
-
-        long streakDays = 0;
-        for (CheckinTask task : tasks) {
-            long cd = calculateContinueDays(task.getId(), userId);
-            if (cd > streakDays) streakDays = cd;
-        }
-
-        // 本月打卡天数
-        LocalDate monthStart = today.withDayOfMonth(1);
-        com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<CheckinRecord> monthWrapper =
-                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<>();
-        monthWrapper.eq(CheckinRecord::getUserId, userId)
-                    .ge(CheckinRecord::getCheckinDate, monthStart);
-        long monthDays = recordMapper.selectCount(monthWrapper);
-
-        // 兼容旧字段：总任务数、今日完成数、完成率
-        long totalTasks = tasks.size();
-        com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<CheckinRecord> todayWrapper =
-                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<>();
-        todayWrapper.eq(CheckinRecord::getUserId, userId)
-                    .eq(CheckinRecord::getCheckinDate, today);
-        long todayDone = recordMapper.selectCount(todayWrapper);
-        int rate = totalTasks > 0 ? (int) (todayDone * 100 / totalTasks) : 0;
-
-        // 计算连续打卡天数（跨所有任务的连续天数）
+        // 计算连续打卡天数（跨所有任务）
         long streakDays = calculateUserStreak(userId);
 
         // 本月打卡天数
@@ -255,20 +229,44 @@ public class CheckinService {
                 new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<>();
         monthWrapper.eq(CheckinRecord::getUserId, userId)
                     .ge(CheckinRecord::getCheckinDate, monthStart)
-                    .le(CheckinRecord::getCheckinDate, today);
-        long monthDays = recordMapper.selectCount(monthWrapper);
+                    .le(CheckinRecord::getCheckinDate, today)
+                    .select(CheckinRecord::getCheckinDate)
+                    .groupBy(CheckinRecord::getCheckinDate);
+        long monthDays = recordMapper.selectList(monthWrapper).size();
+
+        // 总任务数
+        com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<CheckinTask> taskWrapper =
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<>();
+        taskWrapper.eq(CheckinTask::getUserId, userId);
+        long totalTasks = taskMapper.selectCount(taskWrapper);
+
+        // 今日完成的任务数
+        com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<CheckinRecord> todayWrapper =
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<>();
+        todayWrapper.eq(CheckinRecord::getUserId, userId)
+                    .eq(CheckinRecord::getCheckinDate, today)
+                    .select(CheckinRecord::getTaskId)
+                    .groupBy(CheckinRecord::getTaskId);
+        long todayDone = recordMapper.selectList(todayWrapper).size();
+        int rate = totalTasks > 0 ? (int) (todayDone * 100 / totalTasks) : 0;
+
+        // 累计学习时长（每个打卡记录算30分钟）
+        com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<CheckinRecord> allWrapper =
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<>();
+        allWrapper.eq(CheckinRecord::getUserId, userId);
+        long totalRecords = recordMapper.selectCount(allWrapper);
+        double totalHours = Math.round(totalRecords * 30 / 60.0 * 10) / 10.0;
 
         Map<String, Object> stats = new HashMap<>();
         stats.put("totalDays", totalDays);
         stats.put("streakDays", streakDays);
         stats.put("monthDays", monthDays);
+        stats.put("totalTasks", totalTasks);
+        stats.put("totalHours", totalHours);
         // 兼容首页使用的字段
         stats.put("total", totalTasks);
         stats.put("done", todayDone);
         stats.put("rate", rate);
-        stats.put("totalDays", totalDays);
-        stats.put("streakDays", streakDays);
-        stats.put("monthDays", monthDays);
         return stats;
     }
 
@@ -468,5 +466,27 @@ public class CheckinService {
             result.add(item);
         }
         return result;
+    }
+
+    /**
+     * 本月已打卡日期列表（返回日期字符串数组，供 stats.js 使用）
+     * 返回 ["2026-04-01", "2026-04-05", ...]
+     */
+    public List<String> getCalendarDayList(Long userId, int year, int month) {
+        LocalDate startDate = LocalDate.of(year, month, 1);
+        LocalDate endDate = startDate.plusMonths(1).minusDays(1);
+
+        com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<CheckinRecord> wrapper =
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<>();
+        wrapper.eq(CheckinRecord::getUserId, userId)
+               .ge(CheckinRecord::getCheckinDate, startDate)
+               .le(CheckinRecord::getCheckinDate, endDate)
+               .select(CheckinRecord::getCheckinDate)
+               .groupBy(CheckinRecord::getCheckinDate);
+        List<CheckinRecord> records = recordMapper.selectList(wrapper);
+
+        return records.stream()
+                .map(r -> r.getCheckinDate().toString())
+                .collect(Collectors.toList());
     }
 }

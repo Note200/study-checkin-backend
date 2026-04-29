@@ -99,9 +99,9 @@ public class CheckinController {
         return Result.ok(checkinService.getWeekHours(UserContext.getUserId()));
     }
 
-    /** 本月打卡日历（热力图） */
-    @GetMapping("/calendar")
-    public Result<?> calendar(@RequestParam int year, @RequestParam int month) {
-        return Result.ok(checkinService.getCalendarData(UserContext.getUserId(), year, month));
+    /** 本月打卡日历（热力图） - 返回day列表供前端用 */
+    @GetMapping("/calendar/days")
+    public Result<?> calendarDays(@RequestParam int year, @RequestParam int month) {
+        return Result.ok(checkinService.getCalendarDayList(UserContext.getUserId(), year, month));
     }
 }
