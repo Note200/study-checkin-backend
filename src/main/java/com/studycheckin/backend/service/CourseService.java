@@ -14,6 +14,14 @@ public class CourseService extends ServiceImpl<CourseMapper, Course> {
         return lambdaQuery().eq(Course::getUserId, userId).list();
     }
 
+    public List<Course> listByUserAndWeekDay(Long userId, Integer weekDay) {
+        return lambdaQuery()
+                .eq(Course::getUserId, userId)
+                .eq(Course::getWeekDay, weekDay)
+                .orderByAsc(Course::getStartSection)
+                .list();
+    }
+
     public void addCourse(Course course, Long userId) {
         course.setUserId(userId);
         save(course);

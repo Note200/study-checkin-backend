@@ -18,8 +18,16 @@ public class CourseController {
 
     /** 获取我的课程表 */
     @GetMapping("/list")
-    public Result<List<Course>> list() {
-        return Result.ok(courseService.listByUser(UserContext.getUserId()));
+    public Result<List<Course>> list(
+            @RequestParam(required = false) Integer weekDay,
+            @RequestParam(required = false) Integer week) {
+        Long userId = UserContext.getUserId();
+        if (weekDay != null) {
+            // 列表视图：按星期筛选
+            return Result.ok(courseService.listByUserAndWeekDay(userId, weekDay));
+        }
+        // 格子视图：返回全部
+        return Result.ok(courseService.listByUser(userId));
     }
 
     /** 添加课程 */
@@ -37,10 +45,21 @@ public class CourseController {
     }
 
     /** 修改课程 */
-    @PutMapping("/update")
+    @PostMapping("/update")
     public Result<?> update(@RequestBody Course course) {
         courseService.updateCourse(course, UserContext.getUserId());
         return Result.ok();
+    }
+
+    /** 获取单个课程详情 */
+    @GetMapping("/{id}")
+    public Result<Course> detail(@PathVariable Long id) {
+        Long userId = UserContext.getUserId();
+        Course course = courseService.getById(id);
+        if (course == null || !course.getUserId().equals(userId)) {
+            return Result.fail("课程不存在");
+        }
+        return Result.ok(course);
     }
 
     /** 获取今日课程 */
