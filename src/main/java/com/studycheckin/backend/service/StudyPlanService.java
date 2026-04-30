@@ -19,6 +19,13 @@ public class StudyPlanService extends ServiceImpl<StudyPlanMapper, StudyPlan> {
                 .list();
     }
 
+    public List<StudyPlan> listByUser(Long userId) {
+        return lambdaQuery()
+                .eq(StudyPlan::getUserId, userId)
+                .orderByDesc(StudyPlan::getCreateTime)
+                .list();
+    }
+
     public void addPlan(StudyPlan plan, Long userId) {
         plan.setUserId(userId);
         plan.setStatus(0);
@@ -54,5 +61,17 @@ public class StudyPlanService extends ServiceImpl<StudyPlanMapper, StudyPlan> {
                 .eq(StudyPlan::getId, id)
                 .eq(StudyPlan::getUserId, userId)
                 .remove();
+    }
+
+    /** 编辑计划 */
+    public void updatePlan(Long id, StudyPlan plan, Long userId) {
+        lambdaUpdate()
+                .eq(StudyPlan::getId, id)
+                .eq(StudyPlan::getUserId, userId)
+                .set(plan.getTitle() != null, StudyPlan::getTitle, plan.getTitle())
+                .set(plan.getContent() != null, StudyPlan::getContent, plan.getContent())
+                .set(plan.getPlanDate() != null, StudyPlan::getPlanDate, plan.getPlanDate())
+                .set(plan.getPriority() != null, StudyPlan::getPriority, plan.getPriority())
+                .update();
     }
 }

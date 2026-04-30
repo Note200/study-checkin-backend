@@ -31,4 +31,4 @@ jwt:
 
 file:
   upload-dir: C:/Users/rain/WorkBuddy/20260411012625/study-checkin-backend-master/uploads
-  base-url: http://192.168.10.100:8080
+  base-url: http://192.168.10.102:8080

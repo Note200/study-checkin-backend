@@ -19,12 +19,15 @@ public class StudyPlanController {
 
     private final StudyPlanService planService;
 
-    /** 获取某天的学习计划 */
+    /** 获取某天的学习计划（不传date返回全部） */
     @GetMapping("/list")
     public Result<List<StudyPlan>> list(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        if (date == null) date = LocalDate.now();
-        return Result.ok(planService.listByUserAndDate(UserContext.getUserId(), date));
+        Long userId = UserContext.getUserId();
+        if (date != null) {
+            return Result.ok(planService.listByUserAndDate(userId, date));
+        }
+        return Result.ok(planService.listByUser(userId));
     }
 
     /** 添加学习计划 */
@@ -52,6 +55,13 @@ public class StudyPlanController {
     @DeleteMapping("/{id}")
     public Result<?> delete(@PathVariable Long id) {
         planService.deletePlan(id, UserContext.getUserId());
+        return Result.ok();
+    }
+
+    /** 编辑计划 */
+    @PutMapping("/{id}")
+    public Result<?> update(@PathVariable Long id, @RequestBody StudyPlan plan) {
+        planService.updatePlan(id, plan, UserContext.getUserId());
         return Result.ok();
     }
 }

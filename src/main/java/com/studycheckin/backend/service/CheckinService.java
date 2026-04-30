@@ -42,7 +42,10 @@ public class CheckinService {
             map.put("title", task.getTitle());
             map.put("type", task.getType());
             map.put("targetDays", task.getTargetDays());
+            map.put("targetMinutes", task.getTargetMinutes());
             map.put("isPublic", task.getIsPublic());
+            map.put("startDate", task.getStartDate());
+            map.put("endDate", task.getEndDate());
             
             // 计算累计天数
             com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<CheckinRecord> countWrapper =
@@ -128,36 +131,55 @@ public class CheckinService {
     // ===== 打卡记录 =====
 
     public CheckinRecord doCheckin(Long taskId, Long userId, String remark) {
-        // 检查今天是否已打卡
+        return doCheckin(taskId, userId, remark, null);
+    }
+
+    public CheckinRecord doCheckin(Long taskId, Long userId, String remark, LocalDate checkinDate) {
         LocalDate today = LocalDate.now();
+        LocalDate targetDate = checkinDate != null ? checkinDate : today;
+
+        // 不能打未来日期
+        if (targetDate.isAfter(today)) {
+            throw new RuntimeException("不能打卡未来的日期");
+        }
+        // 限制只能补打近7天
+        if (targetDate.isBefore(today.minusDays(7))) {
+            throw new RuntimeException("只能补打近7天的打卡");
+        }
+
+        // 检查该日期是否已打卡
         com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<CheckinRecord> wrapper =
                 new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<>();
         wrapper.eq(CheckinRecord::getTaskId, taskId)
                .eq(CheckinRecord::getUserId, userId)
-               .eq(CheckinRecord::getCheckinDate, today);
+               .eq(CheckinRecord::getCheckinDate, targetDate);
         if (recordMapper.selectCount(wrapper) > 0) {
-            throw new RuntimeException("今天已经打卡了");
+            throw new RuntimeException(targetDate.equals(today) ? "今天已经打卡了" : "该日期已经打卡了");
         }
         CheckinRecord record = new CheckinRecord();
         record.setTaskId(taskId);
         record.setUserId(userId);
-        record.setCheckinDate(today);
+        record.setCheckinDate(targetDate);
         record.setRemark(remark == null ? "" : remark);
         recordMapper.insert(record);
         return record;
     }
 
-    /** 撤销今日打卡 */
+    /** 撤销打卡 */
     public void undoCheckin(Long taskId, Long userId) {
-        LocalDate today = LocalDate.now();
+        undoCheckin(taskId, userId, null);
+    }
+
+    public void undoCheckin(Long taskId, Long userId, LocalDate checkinDate) {
+        LocalDate targetDate = checkinDate != null ? checkinDate : LocalDate.now();
         com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<CheckinRecord> wrapper =
                 new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<>();
         wrapper.eq(CheckinRecord::getTaskId, taskId)
                .eq(CheckinRecord::getUserId, userId)
-               .eq(CheckinRecord::getCheckinDate, today);
+               .eq(CheckinRecord::getCheckinDate, targetDate);
         int deleted = recordMapper.delete(wrapper);
         if (deleted == 0) {
-            throw new RuntimeException("今天还没有打卡记录");
+            throw new RuntimeException("该日期还没有打卡记录");
         }
     }
 

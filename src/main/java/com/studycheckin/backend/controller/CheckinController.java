@@ -37,24 +37,30 @@ public class CheckinController {
         return Result.ok();
     }
 
-    /** 执行打卡 */
+    /** 执行打卡（支持指定日期） */
     @PostMapping("/do")
     public Result<?> doCheckin(@RequestBody Map<String, Object> body) {
         Long taskId = Long.valueOf(body.get("taskId").toString());
         String remark = (String) body.get("remark");
+        String dateStr = (String) body.get("checkinDate");
+        java.time.LocalDate checkinDate = dateStr != null && !dateStr.isEmpty()
+                ? java.time.LocalDate.parse(dateStr) : null;
         try {
-            return Result.ok(checkinService.doCheckin(taskId, UserContext.getUserId(), remark));
+            return Result.ok(checkinService.doCheckin(taskId, UserContext.getUserId(), remark, checkinDate));
         } catch (Exception e) {
             return Result.fail(e.getMessage());
         }
     }
 
-    /** 撤销今日打卡 */
+    /** 撤销打卡（支持指定日期） */
     @PostMapping("/undo")
     public Result<?> undoCheckin(@RequestBody Map<String, Object> body) {
         Long taskId = Long.valueOf(body.get("taskId").toString());
+        String dateStr = (String) body.get("checkinDate");
+        java.time.LocalDate checkinDate = dateStr != null && !dateStr.isEmpty()
+                ? java.time.LocalDate.parse(dateStr) : null;
         try {
-            checkinService.undoCheckin(taskId, UserContext.getUserId());
+            checkinService.undoCheckin(taskId, UserContext.getUserId(), checkinDate);
             return Result.ok();
         } catch (Exception e) {
             return Result.fail(e.getMessage());
