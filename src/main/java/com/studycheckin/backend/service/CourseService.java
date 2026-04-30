@@ -48,14 +48,33 @@ public class CourseService extends ServiceImpl<CourseMapper, Course> {
         updateById(course);
     }
 
-    /** 获取今日课程 */
+    /** 获取今日课程（按当前教学周+星期过滤） */
     public List<Course> listTodayByUser(Long userId) {
-        // 获取今天是星期几 (1=周一, 7=周日)
-        int dayOfWeek = java.time.LocalDate.now().getDayOfWeek().getValue();
-        return lambdaQuery()
+        java.time.LocalDate today = java.time.LocalDate.now();
+        int dayOfWeek = today.getDayOfWeek().getValue();
+
+        // 计算当前教学周
+        java.time.LocalDate semesterStart = java.time.LocalDate.of(2026, 2, 23);
+        long daysBetween = java.time.temporal.ChronoUnit.DAYS.between(semesterStart, today);
+        int currentWeek = (int) (daysBetween / 7) + 1;
+        if (currentWeek < 1) currentWeek = 1;
+
+        List<Course> all = lambdaQuery()
                 .eq(Course::getUserId, userId)
                 .eq(Course::getWeekDay, dayOfWeek)
                 .orderByAsc(Course::getStartSection)
                 .list();
+
+        // 按周次和周类型过滤
+        return all.stream().filter(c -> {
+            if (currentWeek < c.getStartWeek() || currentWeek > c.getEndWeek()) return false;
+            int wt = c.getWeekType() != null ? c.getWeekType() : 0;
+            if (wt == 0) return true;                           // 全部周
+            if (wt == 1) return currentWeek % 2 == 1;           // 单周
+            if (wt == 2) return currentWeek % 2 == 0;           // 双周
+            if (wt == 3) return currentWeek <= 8;               // 前8周
+            if (wt == 4) return currentWeek > 8;                // 后8周
+            return true;
+        }).collect(java.util.stream.Collectors.toList());
     }
 }

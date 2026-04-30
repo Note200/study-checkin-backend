@@ -30,8 +30,10 @@ public class CheckinService {
     // ===== 打卡任务 =====
 
     public List<Map<String, Object>> listTasksByUser(Long userId) {
-        List<CheckinTask> tasks = new com.baomidou.mybatisplus.extension.service.impl.ServiceImpl<CheckinTaskMapper, CheckinTask>() {}
-                .lambdaQuery().eq(CheckinTask::getUserId, userId).list();
+        com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<CheckinTask> taskWrapper =
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<>();
+        taskWrapper.eq(CheckinTask::getUserId, userId);
+        List<CheckinTask> tasks = taskMapper.selectList(taskWrapper);
         
         LocalDate today = LocalDate.now();
         List<Map<String, Object>> result = new java.util.ArrayList<>();

@@ -2,6 +2,7 @@ package com.studycheckin.backend.config;
 
 import com.studycheckin.backend.interceptor.AuthInterceptor;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
@@ -12,6 +13,9 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class WebConfig implements WebMvcConfigurer {
 
     private final AuthInterceptor authInterceptor;
+
+    @Value("${file.upload-dir:./uploads}")
+    private String uploadDir;
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
@@ -28,7 +32,7 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addResourceHandlers(org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry registry) {
         registry.addResourceHandler("/uploads/**")
-                .addResourceLocations("file:C:/Users/rain/WorkBuddy/20260411012625/study-checkin-backend-master/uploads/");
+                .addResourceLocations("file:" + uploadDir + "/");
     }
 
     @Override
